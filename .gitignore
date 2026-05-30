@@ -1,11 +1,12 @@
 keys/
 .cursor/plans/
-=======
+
 # Secrets — never commit
 .env.local
 .env
 *.pem
 *.key
+ledger.jsonl
 
 # Python
 .venv/
