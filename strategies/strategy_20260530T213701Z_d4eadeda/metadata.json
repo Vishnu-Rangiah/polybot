@@ -1,0 +1,14 @@
+{
+  "attempt_index": 2,
+  "author": "mock",
+  "created_at_utc": "2026-05-30T21:37:01+00:00",
+  "parent_strategy_id": "strategy_20260530T213701Z_5d18fbf3",
+  "rationale": "Mock mutation: require net edge >= 0.08 and liquidity >= 60.0 after the cost model before taking a YES position.",
+  "source_file": "/var/folders/qf/749byw_55kbdv0skc88pb35h0000gn/T/tmpqzgqez6g/strategy.py",
+  "source_hash_sha256": "d4eadeda826649c205ed0af4c9e48c335d12885a10aaba51b2284be9124bdd9b",
+  "status": "rejected",
+  "strategy_id": "strategy_20260530T213701Z_d4eadeda",
+  "thesis": "# Strategy Search Thesis",
+  "updated_at_utc": "2026-05-30T21:37:01+00:00",
+  "worker_type": "mock"
+}

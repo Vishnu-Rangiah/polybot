@@ -1,0 +1,14 @@
+{
+  "attempt_index": 2,
+  "author": "codex_modal",
+  "created_at_utc": "2026-05-30T23:18:16+00:00",
+  "parent_strategy_id": "strategy_20260530T213701Z_5d18fbf3",
+  "rationale": "**Summary**\n\n- Edited `strategy.py` only; `decide(state: MarketState) -> Order | None` contract preserved and function remains pure.\n- Verified import with `python -c \"import strategy\"`.\n\n**What I changed**\n\n- Added stricter, cost-aware gating and small, conservative sizing logic:\n  - Family-aware liquidity gate: `weather_rain` requires higher liquidity.\n  - Reject `resolution_ambiguity == \"high\"` markets; require larger net edge when `medium`.\n  - Require minimum model confidence distance from 0.5 (`MIN_CONFIDENCE_DISTANCE`).\n  - Spread sanity check (reject very wide spreads relative to price).\n  - Dynamic slippage estimate that improves with higher `liquidity`.\n  - Calculate `net_edge = model_p - ask - fee - slippage` and require it exceed a contextual `min_net_edge`.\n  - Conservative sizing: default `size=1`, increase to `size=2` only for large net edge, high liquidity, and strong model confidence.\n- Kept `limit_price` at the ask to ensure deterministic fills in the frozen backtester.\n\n**Hypothesis**\n\nThe previous strategy bought whenever raw model-probability minus ask exceeded a fixed margin. After fees, spread, and slippage that often vanishes. My changes aim to improve risk-adjusted performance by (1) rejecting low-quality trade opportunities (high ambiguity, low liquidity, wide spread, marginal model confidence), (2) more accurately accounting for fees and liquidity-dependent slippage when computing net edge, and (3) concentrating capital into only the highest-quality opportunities (small conservative size increase only for very strong edges and deep liquidity). This should reduce the number of low-quality trades, improve Sharpe by lowering variance, and avoid brier degradation by not trading marginal probabilities.",
+  "source_file": "/var/folders/qf/749byw_55kbdv0skc88pb35h0000gn/T/tmpsju333nn/strategy.py",
+  "source_hash_sha256": "1b94c4e91da8402a93cf7fcea0acd7cfc43461e3a09b6a1106ba0875a35c6e63",
+  "status": "rejected",
+  "strategy_id": "strategy_20260530T231816Z_1b94c4e9",
+  "thesis": "# Strategy Search Thesis",
+  "updated_at_utc": "2026-05-30T23:18:16+00:00",
+  "worker_type": "codex_modal"
+}
