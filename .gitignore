@@ -1,3 +1,6 @@
+keys/
+.cursor/plans/
+=======
 # Secrets — never commit
 .env.local
 .env
@@ -8,3 +11,4 @@
 .venv/
 __pycache__/
 *.pyc
+
