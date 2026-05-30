@@ -2,10 +2,15 @@
 
 # Open-Meteo API Reference (for Kalshi Weather-Market Trading)
 
-Open-Meteo provides free weather APIs. Two endpoints matter for a Kalshi weather-market agent:
+Open-Meteo provides free weather APIs. Three endpoints matter for a Kalshi weather-market agent:
 
-1. **Historical Weather Archive API** (`archive-api.open-meteo.com`) — ERA5 reanalysis going back to **1940**, no API key. Use this to **backtest** strategies against resolved weather markets.
-2. **Forecast API** (`api.open-meteo.com`) — live forecasts up to 16 days out. Use this as a **cross-check against NWS** forecasts.
+1. **Historical Forecast API** (`historical-forecast-api.open-meteo.com`) — an archive of *past forecasts* (what the model predicted, as it predicted it) back to ~2021, same schema as the live forecast. **This is the no-lookahead feature source for backtesting** — it answers "what did the forecast say at decision time `t`," which is what a strategy could actually have seen. Used by `kalshi_agent/weather.py` (`MeteoSource`, `as_of_date` set).
+2. **Forecast API** (`api.open-meteo.com`) — live forecasts up to 16 days out. The live-demo feature source (`MeteoSource`, `as_of_date=None`) and a cross-check vs NWS.
+3. **Historical Weather Archive API** (`archive-api.open-meteo.com`) — ERA5 reanalysis (actual observed weather) back to **1940**, no API key. This is **ground truth, not a forecast** — use it only to *approximate* settlement, never as a backtest feature (feeding the realized outcome to a strategy is lookahead). The real settlement number is Kalshi's cited NWS station; see `../kalshi/weather-markets.md`.
+
+> **Feature vs. settlement — do not mix these up.** Backtest *features* (what the agent sees at `t`) come from the **Historical Forecast** archive. Backtest *ground truth* (did it rain / the high temp) comes from the **station Kalshi settles on**, approximated by ERA5 only as a fallback. Using ERA5 for features silently leaks the answer.
+>
+> **Coverage caveat:** `precipitation_probability` is only archived in the Historical Forecast feed from ~**late 2024** onward (verified: 2024-12-01 returns values; 2024-09-01 is all-null). Earlier dates yield no signal — `MeteoSource` emits `fair_prob_yes=None` there so the strategy abstains rather than trading on a fabricated 0.5. Scope rain-probability backtests to late-2024+, or fall back to a `precipitation`-amount proxy (available far back) for older windows.
 
 ## Access & Licensing
 

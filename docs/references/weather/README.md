@@ -7,8 +7,12 @@ then come here for *how* to query it.
 
 | File | Source | Use |
 |---|---|---|
-| `nws-api.md` | `api.weather.gov` (free, no key) | Live forecasts + observations; the Phase-1 demo's primary source |
-| `open-meteo.md` | `open-meteo.com` (free, no key) | **Historical archive** for backtesting (1940+) and a live cross-check vs NWS |
+| `nws-api.md` | `api.weather.gov` (free, no key) | Live observations + the CLI report that **settles** markets (ground truth) |
+| `open-meteo.md` | `open-meteo.com` (free, no key) | **Historical Forecast** archive = no-lookahead backtest *features*; live Forecast API; ERA5 (1940+) only to approximate settlement |
+
+The implemented feature source is `kalshi_agent/weather.py` (`MeteoSource`): one
+`as_of_date` switch picks the live Forecast API or the Historical Forecast archive,
+so the same code yields a live feature and a no-lookahead backtest feature.
 
 ## The one rule that ties these together
 

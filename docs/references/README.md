@@ -50,8 +50,8 @@ The data the Phase-1 weather agent runs on (both free, no API key).
 
 | File | Source | Use |
 |---|---|---|
-| `nws-api.md` | `api.weather.gov` | Live forecasts + observations; primary Phase-1 source |
-| `open-meteo.md` | `open-meteo.com` | Historical archive (1940+) for backtesting; live cross-check |
+| `nws-api.md` | `api.weather.gov` | Live observations + the CLI report that **settles** markets (ground truth) |
+| `open-meteo.md` | `open-meteo.com` | **Historical Forecast** archive = no-lookahead backtest features (`weather.py`); live Forecast API; ERA5 only to approximate settlement |
 
 ### `modeling/` — Probability & scoring math
 
