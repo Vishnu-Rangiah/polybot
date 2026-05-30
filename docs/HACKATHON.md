@@ -2,9 +2,6 @@
 
 ## Office Logistics
 
-<aside>
-⚡
-
 **WiFi**
 
 - Antler | Password: Hello@Antler!
