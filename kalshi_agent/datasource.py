@@ -140,10 +140,14 @@ class WebSocketDataSource:
             self._apply_delta(ticker, body)
 
     def _apply_delta(self, ticker: str, body: dict) -> None:
-        side = body["side"]
         # WS uses price_dollars/delta_fp; tolerate older price/delta too.
-        price = price_to_cents(body.get("price_dollars", body.get("price")))
-        delta = round(float(body.get("delta_fp", body.get("delta"))))
+        side = body.get("side")
+        raw_price = body.get("price_dollars", body.get("price"))
+        raw_delta = body.get("delta_fp", body.get("delta"))
+        if side is None or raw_price is None or raw_delta is None:
+            return  # malformed delta: skip rather than kill the WS thread
+        price = price_to_cents(raw_price)
+        delta = round(float(raw_delta))
         with self._lock:
             book = self._books.setdefault(ticker, {"yes": {}, "no": {}})
             level = book[side]

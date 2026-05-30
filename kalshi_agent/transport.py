@@ -139,9 +139,16 @@ class Transport:
         """
         url = self.base_url + endpoint
         last_exc: Exception | None = None
+        # POST is NOT idempotent: a 5xx or network error can arrive *after* the
+        # order was accepted by the matching engine, so a blind retry risks a
+        # duplicate fill with real money. Only a 429 (rate-limited => rejected
+        # before processing) is provably safe to retry for a POST. GET and
+        # DELETE are idempotent and retry on any transient failure.
+        idempotent = method != "POST"
 
         for attempt in range(self.max_retries + 1):
             self._limiter.acquire()
+            retryable = False
             try:
                 resp = self._session.request(
                     method,
@@ -152,22 +159,28 @@ class Transport:
                     timeout=self.timeout_s,
                 )
             except requests.RequestException as exc:
-                last_exc = exc  # network-level failure: retry
+                last_exc = exc  # network-level failure
+                # Ambiguous for a POST (request may have reached the server) ->
+                # do not retry; surface the error so the caller can reconcile.
+                retryable = idempotent
             else:
                 if resp.status_code < 400:
                     return resp.json() if resp.content else {}
-                if resp.status_code not in _RETRY_STATUS:
-                    raise TransportError(
-                        f"{method} {endpoint} -> {resp.status_code}",
-                        status=resp.status_code,
-                        body=resp.text[:500],
-                    )
                 last_exc = TransportError(
                     f"{method} {endpoint} -> {resp.status_code}",
                     status=resp.status_code,
                     body=resp.text[:500],
                 )
+                # 5xx is in _RETRY_STATUS but is ambiguous for a POST (the order
+                # may have been accepted); only 429 is safe to retry there.
+                retryable = resp.status_code in _RETRY_STATUS and (
+                    idempotent or resp.status_code == 429
+                )
+                if not retryable:
+                    raise last_exc
 
+            if not retryable:
+                break  # non-idempotent ambiguous failure: stop and report
             if attempt < self.max_retries:
                 # Exponential backoff: 0.25, 0.5, 1.0, ... seconds.
                 time.sleep(0.25 * (2**attempt))

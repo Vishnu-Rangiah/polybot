@@ -93,7 +93,11 @@ def main() -> int:
             print("   → A 401/403 on demo almost always means this is a PROD key.")
             print("     Demo needs a separate key created at demo-api.kalshi.co.")
         return 1
-    balance_cents = bal.get("balance", 0)
+    # Newer API returns a "balance_dollars" string; older returns integer cents.
+    balance_cents = (
+        int(bal["balance"]) if "balance" in bal
+        else round(float(bal.get("balance_dollars") or 0) * 100)
+    )
     print(f"✅ Phase 1 auth OK   exchange_active={status.get('exchange_active')}  "
           f"balance=${balance_cents / 100:,.2f}")
 
