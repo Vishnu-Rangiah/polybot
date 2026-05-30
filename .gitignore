@@ -7,6 +7,12 @@ keys/
 *.pem
 *.key
 
+# Local-only credential notes (account key IDs + personal key-file paths)
+docs/CREDENTIALS.md
+
+# Generated runtime artifacts (paper-trade snapshots, etc.)
+outputs/
+
 # Python
 .venv/
 __pycache__/

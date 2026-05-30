@@ -67,7 +67,7 @@ These should merge into one product:
 ```text
 Phase 1: Live Weather Research Agent
   - Pull current Kalshi weather market data.
-  - Pull public NWS data.
+  - Pull public Open-Meteo forecast data (settle ground truth on the NWS station Kalshi cites).
   - Produce explainable paper-trade recommendation.
 
 Phase 2: Frozen Backtester
@@ -111,7 +111,7 @@ User enters Kalshi weather ticker
   -> market metadata + orderbook
   -> orderbook normalizer
   -> weather rule parser
-  -> NWS data client
+  -> Open-Meteo client (live forecast + historical-forecast)
   -> weather probability model
   -> decision engine
   -> terminal JSON + human-readable memo
@@ -148,8 +148,7 @@ polybot/
       kalshi_client.py
       pricing.py
       rule_parser.py
-      nws_client.py
-      weather_model.py
+      weather.py        # Open-Meteo feature source (live + historical-forecast)
       decision.py
       report.py
       strategy.py
@@ -215,7 +214,7 @@ Example weather features:
 features = {
     "market_family": "weather_rain",
     "location": "NYC",
-    "nws_probability_yes": 0.27,
+    "fair_prob_yes": 0.27,
     "resolution_ambiguity": "medium",
     "source_count": 3,
 }
@@ -225,7 +224,7 @@ Example first strategy:
 
 ```python
 def decide(state: MarketState) -> Order | None:
-    model_p = state.features.get("nws_probability_yes")
+    model_p = state.features.get("fair_prob_yes")
     if model_p is None or state.yes_ask is None:
         return None
 
@@ -291,71 +290,55 @@ def normalize_orderbook(orderbook: dict) -> dict:
     }
 ```
 
-### NWS Client
+### Weather Feature Source (Open-Meteo)
 
-The National Weather Service API requires a `User-Agent`.
+Implemented in `kalshi_agent/weather.py` as `MeteoSource`. It is a *feature*
+source, not a `DataSource`: it produces the `features` dict (`fair_prob_yes` +
+provenance) that `normalize()` folds into a `MarketState`, which `strategy.decide`
+then reads. No API key, no signing — so it deliberately bypasses the Kalshi
+`Transport`.
 
-```python
-import requests
+We use Open-Meteo instead of NWS for one decisive reason: **the backtest needs
+the forecast as it stood at decision time `t`, and NWS does not archive past
+forecasts.** Open-Meteo's Historical Forecast API archives past forecasts with
+the same schema as the live feed, so the *same code* yields a live feature today
+and a no-lookahead feature when replaying a resolved market. Live vs. historical
+is a single switch — `as_of_date`:
 
-NWS_BASE_URL = "https://api.weather.gov"
-
-class NWSClient:
-    def __init__(self, user_agent: str):
-        self.headers = {
-            "User-Agent": user_agent,
-            "Accept": "application/geo+json",
-        }
-
-    def get_point_metadata(self, lat: float, lon: float) -> dict:
-        response = requests.get(
-            f"{NWS_BASE_URL}/points/{lat},{lon}",
-            headers=self.headers,
-            timeout=15,
-        )
-        response.raise_for_status()
-        return response.json()["properties"]
-
-    def get_hourly_forecast(self, lat: float, lon: float) -> list[dict]:
-        point = self.get_point_metadata(lat, lon)
-        response = requests.get(point["forecastHourly"], headers=self.headers, timeout=15)
-        response.raise_for_status()
-        return response.json()["properties"]["periods"]
+```text
+as_of_date is None  -> live forecast        api.open-meteo.com/v1/forecast
+as_of_date is set    -> historical forecast  historical-forecast-api.open-meteo.com/v1/forecast
 ```
+
+Two data realities that the code handles explicitly:
+
+- **Coverage:** `precipitation_probability` is only archived from ~late 2024
+  onward. Earlier dates return all-null, so backtests there get no signal.
+- **No-signal must abstain, not guess.** When the window has no usable
+  probabilities, `precip_features` emits `fair_prob_yes = None` (not `0.5`), so
+  `decide` returns `None` and the strategy stays out. Treating missing data as a
+  coin flip would silently trade on nothing.
+
+Docs:
+- Historical Forecast: https://open-meteo.com/en/docs/historical-forecast-api
+- Previous Runs (fixed lead-time, stricter no-lookahead): https://open-meteo.com/en/docs/previous-runs-api
+- Historical Weather / ERA5 (settlement approximation): https://open-meteo.com/en/docs/historical-weather-api
 
 ### Weather Probability Model
 
-Start with transparent heuristics.
+Transparent heuristic in `weather.py:rain_probability` — collapse the day's
+hourly precipitation probabilities into one YES probability, weighting the peak
+hour (a binary "did it rain today" market resolves on the peak, not the average)
+while keeping some average mass:
 
 ```python
-def estimate_rain_probability(hourly_periods: list[dict], hours_ahead: int = 18) -> dict:
-    pops = []
-    for period in hourly_periods[:hours_ahead]:
-        value = period.get("probabilityOfPrecipitation", {}).get("value")
-        if value is not None:
-            pops.append(max(0.0, min(1.0, value / 100.0)))
-
-    if not pops:
-        return {
-            "probability_yes": 0.5,
-            "confidence": "low",
-            "notes": ["NWS hourly precipitation probabilities were unavailable."],
-        }
-
-    max_pop = max(pops)
-    avg_pop = sum(pops) / len(pops)
-    probability = 0.65 * max_pop + 0.35 * avg_pop
-
-    return {
-        "probability_yes": round(probability, 3),
-        "confidence": "medium",
-        "notes": [
-            f"Max hourly precipitation probability: {max_pop:.0%}",
-            f"Average hourly precipitation probability: {avg_pop:.0%}",
-            "Heuristic treats weather hours as correlated.",
-        ],
-    }
+probability = 0.65 * max(hourly_pops) + 0.35 * mean(hourly_pops)
 ```
+
+Settlement note: features can come from any forecast source, but the backtest's
+**ground truth must match Kalshi's cited resolution station** (e.g. NYC settles
+on NWS Central Park), not whatever we used for features. `WEATHER_LOCATIONS`
+records the settlement source per location.
 
 ### Decision Engine
 
@@ -463,7 +446,7 @@ Narration:
 
 1. Fetches Kalshi market metadata and orderbook.
 2. Parses the resolution question.
-3. Pulls public NWS weather data.
+3. Pulls public Open-Meteo forecast data (live, or as-of-date for backtests).
 4. Estimates fair probability.
 5. Adjusts for fees, spread, slippage, and liquidity.
 6. Prints a paper-trade decision with risk flags.
@@ -485,7 +468,12 @@ Stretch demo:
 
 ## Open Questions
 
-- How much historical Kalshi price/orderbook data is available?
-- Can we fetch enough resolved weather markets for a credible backtest?
-- Which live weather series should be the demo target?
+- How much historical Kalshi price/orderbook data is available? (Resolved-market
+  trades/candlesticks are available via the API; full orderbook history is not.)
+- ~~Where do no-lookahead weather features come from?~~ Resolved: Open-Meteo
+  Historical Forecast API archives past forecasts (`precipitation_probability`
+  from ~late 2024). Settlement ground truth must still match Kalshi's cited
+  station (see `weather.py:WEATHER_LOCATIONS`).
+- Which live weather series should be the demo target? (NYC/CHI/MIA rain are
+  wired in `WEATHER_LOCATIONS`.)
 - Is Raindrop worth integrating before the terminal demo is stable?

@@ -6,6 +6,7 @@ This folder is the source of truth for the hackathon build.
 
 - `DESIGN.md` - canonical product direction, architecture, conflicts, and build order.
 - `TASKS.md` - team coordination, task ownership, and demo checklist.
+- `CREDENTIALS.md` - Kalshi API keys (demo + prod, both read-write), how to switch envs, and the ⚠️ real-money warning. Private keys live outside the repo; never commit them.
 
 ## Supporting Context
 
