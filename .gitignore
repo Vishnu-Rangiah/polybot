@@ -6,6 +6,7 @@ keys/
 .env
 *.pem
 *.key
+ledger.jsonl
 
 # Local-only credential notes (account key IDs + personal key-file paths)
 docs/CREDENTIALS.md
