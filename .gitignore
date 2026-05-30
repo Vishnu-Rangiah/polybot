@@ -1,6 +1,6 @@
 keys/
 .cursor/plans/
-=======
+
 # Secrets — never commit
 .env.local
 .env
