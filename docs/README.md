@@ -21,7 +21,9 @@ These files are useful background, but are not the canonical implementation sour
 
 Vendored third-party material — look it up locally instead of re-fetching the web:
 
-- `references/kalshi/` - curated Kalshi Trade API v2 docs (auth signing, markets, orderbook, orders, fees).
+- `references/kalshi/` - curated Kalshi Trade API v2 docs (auth signing, markets, orderbook, orders, fees) + `weather-markets.md` (ticker → settlement station mapping).
+- `references/weather/` - NWS (`api.weather.gov`) and Open-Meteo data-source references for forecasts and historical backtesting data.
+- `references/modeling/` - probability, edge-after-fees, and scoring (Brier/calibration/Sharpe) reference.
 - `references/autoresearch/` - Karpathy's autonomous research loop, cleaned to the methodology and mapped onto our frozen-backtester design.
 
 When plans diverge, update `DESIGN.md` first, then update `TASKS.md`.

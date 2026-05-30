@@ -5,6 +5,17 @@ Vendored external knowledge for the Kalshi autoresearch agent. These files are
 we build lives in `../DESIGN.md` and `../TASKS.md`. Keep this folder for "look it
 up locally instead of re-fetching the web" needs.
 
+## The pipeline these map to
+
+```
+Kalshi market ──► settling station ──► forecast / observation ──► fair probability ──► trade
+   kalshi/         kalshi/weather-       weather/ (NWS,            modeling/            kalshi/
+                   markets.md            Open-Meteo)               prob-and-scoring     portfolio-orders
+```
+
+The frozen-backtester half of the project (autoresearch loop) sits underneath,
+iterating strategies over this same flow on historical data.
+
 ## Contents
 
 ### `kalshi/` — Kalshi Trade API v2 docs
@@ -29,6 +40,24 @@ Our own client (`../../kalshi_client.py`) already implements the auth signing
 described in `authentication.md`. Note the docs list `external-api.kalshi.com` as
 the current production host; `api.elections.kalshi.com` (what our client uses) is a
 still-working legacy alias for the same exchange — both serve **all** markets.
+
+`weather-markets.md` is the bridge to the data sources below: it explains how to go
+from a market ticker to the exact station and report that settles it.
+
+### `weather/` — Forecast & historical data sources
+
+The data the Phase-1 weather agent runs on (both free, no API key).
+
+| File | Source | Use |
+|---|---|---|
+| `nws-api.md` | `api.weather.gov` | Live forecasts + observations; primary Phase-1 source |
+| `open-meteo.md` | `open-meteo.com` | Historical archive (1940+) for backtesting; live cross-check |
+
+### `modeling/` — Probability & scoring math
+
+| File | Covers |
+|---|---|
+| `probability-and-scoring.md` | Price↔probability, edge/EV after fees, forecast→bucket probability, Brier / log loss / calibration, PnL / Sharpe / drawdown, Kelly sizing, pitfalls |
 
 ### `autoresearch/` — Karpathy's autonomous research loop
 
