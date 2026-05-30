@@ -17,4 +17,11 @@ These files are useful background, but are not the canonical implementation sour
 - `../hackathon.md` - hackathon logistics, prizes, judging criteria, and resource links.
 - `../.cursor/plans/kalshi_weather_agent_92ec1e3f.plan.md` - earlier Cursor implementation plan for a weather-market terminal MVP.
 
+## External References
+
+Vendored third-party material — look it up locally instead of re-fetching the web:
+
+- `references/kalshi/` - curated Kalshi Trade API v2 docs (auth signing, markets, orderbook, orders, fees).
+- `references/autoresearch/` - Karpathy's autonomous research loop, cleaned to the methodology and mapped onto our frozen-backtester design.
+
 When plans diverge, update `DESIGN.md` first, then update `TASKS.md`.
