@@ -1,1 +1,1 @@
-# polybot
+# Polybot Hackathon
