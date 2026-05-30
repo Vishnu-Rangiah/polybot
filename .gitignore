@@ -6,6 +6,7 @@ keys/
 .env
 *.pem
 *.key
+ledger.jsonl
 
 # Python
 .venv/
