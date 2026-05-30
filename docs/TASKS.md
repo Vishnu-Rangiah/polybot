@@ -12,10 +12,11 @@ Two tracks can run in parallel once the shared contract is agreed.
 
 ```text
 Person A: Quant/Data
-  Owns historical data, backtesting, metrics, and anti-overfitting rigor.
+  Andrew owns the Kalshi data pipeline.
+  Vishnu owns the frozen scorer/backtester.
 
 Person B: Agent/Integration
-  Owns live terminal agent, Kalshi/NWS integration, reports, loop, and demo polish.
+  Owner name TBD. Owns live terminal agent, Kalshi/NWS integration, reports, loop, and demo polish.
 ```
 
 ## 0. Together First: Lock The Contract
@@ -31,7 +32,7 @@ Put these definitions in `src/kalshi_agent/types.py`.
 
 ## 1. Live Weather MVP
 
-Owner: Agent/Integration.
+Owner: Person B / Agent/Integration. Name TBD in the old task split.
 
 Goal: terminal command that researches one live Kalshi weather market and prints a paper-trade memo.
 
@@ -49,11 +50,13 @@ Goal: terminal command that researches one live Kalshi weather market and prints
 
 ## 2. Quant/Data Track
 
-Owner: Quant/Data.
+Owners: Andrew and Vishnu.
 
 Goal: build the credibility layer behind the live agent.
 
 ### 2.1 Kalshi Data Pipeline
+
+Owner: Andrew.
 
 - [ ] Confirm Kalshi historical data endpoints and auth requirements.
 - [ ] Confirm how far back price/orderbook history goes.
@@ -64,6 +67,8 @@ Goal: build the credibility layer behind the live agent.
 - [ ] Split by resolution date into train, val, and test.
 
 ### 2.2 Frozen Backtester
+
+Owner: Vishnu.
 
 This is the core IP.
 
@@ -77,11 +82,15 @@ This is the core IP.
 
 ### 2.3 Baseline Strategy
 
+Owner: Vishnu, with Andrew providing data/features as needed.
+
 - [ ] Add a simple `strategy.py` that consumes `MarketState`.
 - [ ] Confirm it runs through the backtester on train, val, and test.
 - [ ] Add at least one weather-based strategy using NWS probability features.
 
 ### 2.4 Overfitting Demo Beat
+
+Owner: Vishnu.
 
 - [ ] Create an intentionally overfit strategy that scores well on train.
 - [ ] Show that it fails on val/test.
@@ -89,7 +98,7 @@ This is the core IP.
 
 ## 3. Agent / Autoresearch Track
 
-Owner: Agent/Integration.
+Owner: Person B / Agent/Integration. Name TBD in the old task split.
 
 Goal: make the agent iterate on strategies without compromising the scorer.
 
