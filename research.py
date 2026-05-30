@@ -10,7 +10,11 @@ from typing import Any
 
 import requests
 
-KALSHI_PUBLIC_BASE = "https://external-api.kalshi.com/trade-api/v2"
+# Public read endpoints (markets, orderbook) need no auth. This is the prod host
+# verified end-to-end while building kalshi_agent/ (see docs/PIPELINE.md);
+# external-api.kalshi.com also serves these reads, but we use the canonical host
+# so the whole repo points at one base.
+KALSHI_PUBLIC_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 NWS_BASE = "https://api.weather.gov"
 NWS_USER_AGENT = "polybot-kalshi-hackathon (local research demo)"
 DEFAULT_LEDGER_PATH = Path("ledger.jsonl")
@@ -57,13 +61,20 @@ def _best_bid(levels: list[list[str | int | float]]) -> tuple[float | None, floa
         return None, 0.0
 
     parsed = [(_normalize_price(price), float(quantity)) for price, quantity in levels]
+    # Best bid is the HIGHEST price level, chosen by max() not by position. The
+    # live API does not guarantee level ordering (verified: they arrive
+    # ascending), so indexing [0] — as the original DESIGN.md sketch did — would
+    # pick the *worst* bid and derive a wrong ask.
     price, quantity = max(parsed, key=lambda level: level[0])
     return round(price, 4), quantity
 
 
 def normalize_orderbook(orderbook: dict) -> dict:
-    yes_levels = orderbook.get("yes_dollars") or orderbook.get("yes") or []
-    no_levels = orderbook.get("no_dollars") or orderbook.get("no") or []
+    # Key names differ across Kalshi feeds (verified live): the REST orderbook
+    # uses `yes_dollars`, the WS snapshot uses `yes_dollars_fp`, and an older
+    # shape used bare `yes`. Accept all so this survives whichever we get.
+    yes_levels = orderbook.get("yes_dollars") or orderbook.get("yes_dollars_fp") or orderbook.get("yes") or []
+    no_levels = orderbook.get("no_dollars") or orderbook.get("no_dollars_fp") or orderbook.get("no") or []
     yes_bid, yes_qty = _best_bid(yes_levels)
     no_bid, no_qty = _best_bid(no_levels)
 
@@ -99,6 +110,16 @@ def parse_weather_rule(market: dict) -> dict:
     ).lower()
     location = infer_location(market)
 
+    # Learning from the live API: the market object carries the AUTHORITATIVE
+    # settlement rule in `rules_primary` / `rules_secondary` (e.g. "precipitation
+    # recorded at Central Park ... strictly greater than 0 ... resolves to Yes",
+    # plus the NWS station URL used for determination). The title alone is not
+    # enough to settle on — so when these are present we surface them verbatim and
+    # lower the ambiguity we'd otherwise have to assume from the title text.
+    rules_primary = market.get("rules_primary") or None
+    rules_secondary = market.get("rules_secondary") or None
+    has_rules = bool(rules_primary)
+
     if "rain" in text or "precip" in text:
         return {
             "market_family": "weather_rain",
@@ -106,8 +127,14 @@ def parse_weather_rule(market: dict) -> dict:
             "location": location,
             "metric": "precipitation",
             "threshold": "measurable rain; exact threshold must be checked in Kalshi rules",
-            "ambiguity_score": "medium",
-            "unresolved_questions": [
+            "rules_primary": rules_primary,
+            "rules_secondary": rules_secondary,
+            # The official rule pins the station + threshold, so we trust it over
+            # a title guess; only fall back to "medium" when no rule text exists.
+            "ambiguity_score": "low" if has_rules else "medium",
+            "unresolved_questions": []
+            if has_rules
+            else [
                 "Which station or official report controls settlement?",
                 "What minimum precipitation amount counts as rain?",
             ],
@@ -115,16 +142,22 @@ def parse_weather_rule(market: dict) -> dict:
 
     if "temperature" in text or "highest" in text or "high" in text:
         lower, upper = parse_temperature_bucket(market)
+        bucket_clear = lower is not None and upper is not None
         return {
             "market_family": "weather_high_temp",
             "summary": "Resolves based on the official daily high temperature for the stated city/date.",
             "location": location,
             "metric": "daily_high_temperature_f",
-            "threshold": f"{lower}-{upper}F" if lower is not None and upper is not None else "temperature bucket unclear",
+            "threshold": f"{lower}-{upper}F" if bucket_clear else "temperature bucket unclear",
             "bucket_lower_f": lower,
             "bucket_upper_f": upper,
-            "ambiguity_score": "medium" if lower is not None and upper is not None else "high",
-            "unresolved_questions": [
+            "rules_primary": rules_primary,
+            "rules_secondary": rules_secondary,
+            # Need both a clear bucket AND the official rule to call it low-risk.
+            "ambiguity_score": "low" if (bucket_clear and has_rules) else "medium" if bucket_clear else "high",
+            "unresolved_questions": []
+            if (bucket_clear and has_rules)
+            else [
                 "Which station determines the final high temperature?",
                 "How are bucket boundaries handled?",
             ],
@@ -136,6 +169,8 @@ def parse_weather_rule(market: dict) -> dict:
         "location": location,
         "metric": None,
         "threshold": None,
+        "rules_primary": rules_primary,
+        "rules_secondary": rules_secondary,
         "ambiguity_score": "high",
         "unresolved_questions": ["Market does not match the initial weather parser patterns."],
     }
@@ -177,10 +212,13 @@ def estimate_rain_probability(hourly_periods: list[dict], hours_ahead: int = 18)
             pops.append(max(0.0, min(1.0, value / 100.0)))
 
     if not pops:
+        # No signal -> abstain, don't guess. A real 0.5 here would flow into the
+        # edge calc and could trigger a trade on nothing; None makes decide()
+        # return NO_TRADE instead. (Same discipline as kalshi_agent/weather.py.)
         return {
-            "probability_yes": 0.5,
+            "probability_yes": None,
             "confidence": "low",
-            "notes": ["NWS hourly precipitation probabilities were unavailable."],
+            "notes": ["NWS hourly precipitation probabilities were unavailable; abstaining."],
         }
 
     max_pop = max(pops)
@@ -201,18 +239,21 @@ def estimate_rain_probability(hourly_periods: list[dict], hours_ahead: int = 18)
 def estimate_high_temp_probability(hourly_periods: list[dict], lower_f: int | None, upper_f: int | None) -> dict:
     temps = [period.get("temperature") for period in hourly_periods[:24] if period.get("temperature") is not None]
     if not temps:
+        # No signal -> abstain (None), not a 0.5 guess. See estimate_rain_probability.
         return {
-            "probability_yes": 0.5,
+            "probability_yes": None,
             "confidence": "low",
-            "notes": ["NWS hourly temperatures were unavailable."],
+            "notes": ["NWS hourly temperatures were unavailable; abstaining."],
         }
 
     forecast_high = max(temps)
     if lower_f is None or upper_f is None:
+        # We have a forecast high but no usable bucket to score it against, so
+        # there is no signal to act on -> abstain rather than guess 0.5.
         return {
-            "probability_yes": 0.5,
+            "probability_yes": None,
             "confidence": "low",
-            "notes": [f"NWS forecast high is {forecast_high}F, but the temperature bucket was unclear."],
+            "notes": [f"NWS forecast high is {forecast_high}F, but the temperature bucket was unclear; abstaining."],
         }
 
     if lower_f <= forecast_high <= upper_f:
@@ -238,9 +279,9 @@ def estimate_probability(rule: dict, hourly_periods: list[dict]) -> dict:
             rule.get("bucket_upper_f"),
         )
     return {
-        "probability_yes": 0.5,
+        "probability_yes": None,
         "confidence": "low",
-        "notes": ["Unsupported market family; neutral probability used."],
+        "notes": ["Unsupported market family; no model signal, abstaining."],
     }
 
 
@@ -249,9 +290,35 @@ def estimate_fee_per_contract(price: float) -> float:
     return math.ceil(raw_cents) / 100
 
 
-def decide(model_p: float, market_data: dict, ambiguity_score: str) -> dict:
+def decide(
+    model_p: float | None,
+    market_data: dict,
+    ambiguity_score: str,
+    *,
+    market_status: str = "active",
+) -> dict:
     yes_ask = market_data.get("yes_ask")
     liquidity = market_data.get("liquidity", 0.0)
+
+    # Only "active" markets are tradeable; "closed"/"settled"/etc. mean the book
+    # is gone or the outcome is decided. Verified: the live API reports status
+    # "active" (the `status=open` list filter maps to it).
+    if market_status != "active":
+        return {
+            "action": "NO_TRADE",
+            "reason": f"Market is not active (status={market_status!r}).",
+            "raw_edge": None,
+            "net_edge": None,
+        }
+
+    # No model probability means we have no signal -> abstain, never guess.
+    if model_p is None:
+        return {
+            "action": "NO_TRADE",
+            "reason": "No usable weather signal; abstaining rather than guessing.",
+            "raw_edge": None,
+            "net_edge": None,
+        }
 
     if yes_ask is None:
         return {
@@ -313,6 +380,7 @@ def research_market(ticker: str) -> dict:
         model_p=model["probability_yes"],
         market_data=market_data,
         ambiguity_score=rule["ambiguity_score"],
+        market_status=market.get("status", "active"),
     )
 
     return {
@@ -322,6 +390,7 @@ def research_market(ticker: str) -> dict:
         "market_ticker": normalized_ticker,
         "market_title": market.get("title"),
         "status": market.get("status"),
+        "close_time": market.get("close_time"),
         "resolution": rule,
         "market_data": market_data,
         "model": model,
