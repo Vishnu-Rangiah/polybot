@@ -41,8 +41,9 @@ Goal: terminal command that researches one live Kalshi weather market and prints
 - [ ] Implement `kalshi_client.py` for public market and orderbook endpoints.
 - [ ] Implement `pricing.py` to infer `yes_ask` and `no_ask` from YES/NO bids.
 - [ ] Implement `rule_parser.py` for NYC rain and one high-temperature market.
-- [ ] Implement `nws_client.py` with required NWS `User-Agent`.
-- [ ] Implement `weather_model.py` with transparent rain/high-temperature heuristics.
+- [x] Implement weather feature source (`weather.py`, `MeteoSource`) on Open-Meteo
+      — live forecast + historical-forecast (`as_of_date`) for no-lookahead features.
+- [x] Transparent rain heuristic (`weather.py:rain_probability`); abstains (None) on no signal. High-temp heuristic still TODO.
 - [ ] Implement `decision.py` for fee/slippage/liquidity-adjusted paper decisions.
 - [ ] Implement `report.py` for terminal JSON and human-readable memo output.
 - [ ] Implement `cli.py` so the demo can run with `python -m kalshi_agent.cli --ticker <ticker>`.
