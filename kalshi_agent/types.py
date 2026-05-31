@@ -154,3 +154,86 @@ class OrderAck:
     status: str                     # "resting"|"executed"|"canceled"|"rejected"
     filled_qty: int
     resting_qty: int
+
+
+# --- historical / backtest vocabulary ------------------------------------------
+# These extend the contract for evaluating strategies over resolved markets. They
+# stay here, in the bottom layer, so both the scorer (metrics) and the engine
+# (backtest) can depend on them without depending on each other.
+
+
+@dataclass(frozen=True, slots=True)
+class Candle:
+    """One OHLC candlestick for a single market (Kalshi candlesticks endpoint).
+
+    We keep only the *close* of each series: for a no-lookahead backtest the
+    period close is the last value knowable within that period, so it is the
+    honest decision-time quote. Prices are integer cents; `None` means that side
+    had no quote during the period. Candles carry no resting-depth information.
+    """
+
+    ticker: str
+    end_period_ts: int  # unix seconds; the period close == the no-lookahead anchor
+    yes_bid_close: int | None = None
+    yes_ask_close: int | None = None
+    price_close: int | None = None
+    volume: int = 0
+    open_interest: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class Settlement:
+    """How a market resolved — the ground truth a backtest scores against.
+
+    `result` mirrors Kalshi's `market.result`: "yes", "no", or "" when the market
+    has not settled (or resolved to a non-binary outcome we don't score). A YES
+    contract pays 100c iff `result == "yes"`; a NO contract pays 100c iff "no".
+    """
+
+    ticker: str
+    result: str  # "yes" | "no" | "" (unsettled / unscored)
+    settled_ts: int | None = None  # unix seconds
+
+    @property
+    def is_settled(self) -> bool:
+        return self.result in ("yes", "no")
+
+    def payout_cents(self, side: Side) -> int:
+        """What one contract on `side` pays at settlement: 100c if it won, else 0."""
+        won = (self.result == "yes" and side is Side.YES) or (
+            self.result == "no" and side is Side.NO
+        )
+        return 100 if won else 0
+
+
+@dataclass(frozen=True, slots=True)
+class Prediction:
+    """A model probability emitted at decision time, paired with the realized
+    outcome once the market settled. The input to calibration scoring (Brier).
+
+    `outcome` is 1 if YES resolved true, else 0 — always framed from the YES
+    side, matching `fair_prob_yes`, regardless of which side (if any) was traded.
+    """
+
+    ticker: str
+    observed_at_ms: int
+    fair_prob_yes: float
+    outcome: int  # 1 if YES resolved true, else 0
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedTrade:
+    """A round-trip held to settlement: bought at `entry_cents`, paid out
+    `settle_cents` (100 or 0 for the side held). The input to P&L."""
+
+    ticker: str
+    side: Side
+    quantity: int
+    entry_cents: int
+    fee_cents: int
+    settle_cents: int  # payout per contract at settlement, for the side held
+    settled_ts: int | None = None
+
+    def pnl_cents(self) -> int:
+        """Realized P&L across all contracts: payout - cost - fees."""
+        return self.quantity * (self.settle_cents - self.entry_cents) - self.fee_cents
