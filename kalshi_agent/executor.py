@@ -17,6 +17,7 @@ skeleton stays legible.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from kalshi_agent.risk import RiskGate
@@ -65,10 +66,21 @@ class PaperExecutor:
     """Simulated fills against the observed book. Tracks positions/balance in
     memory so the rest of the system behaves exactly as it would live."""
 
-    def __init__(self, gate: RiskGate, *, starting_balance_cents: int, fee_cents: int = 0):
+    def __init__(
+        self,
+        gate: RiskGate,
+        *,
+        starting_balance_cents: int,
+        fee_cents: int = 0,
+        fee_model: Callable[[int, int], int] | None = None,
+    ):
         self._gate = gate
         self.balance_cents = starting_balance_cents
+        # `fee_cents` is a flat per-fill fee. `fee_model`, when given, computes
+        # the fee from (quantity, price_cents) and takes precedence; historical
+        # backtests use it to carry Kalshi's quadratic fee through paper fills.
         self.fee_cents = fee_cents
+        self.fee_model = fee_model
         self._positions: dict[tuple[str, Side], Position] = {}
 
     def position(self, ticker: str, side: Side) -> Position | None:
@@ -86,6 +98,7 @@ class PaperExecutor:
         if price is None:
             return None  # not marketable — would rest, which paper doesn't model
 
+        fee = self.fee_model(order.quantity, price) if self.fee_model else self.fee_cents
         fill = Fill(
             client_order_id=order.client_order_id,
             ticker=order.ticker,
@@ -93,7 +106,7 @@ class PaperExecutor:
             action=order.action,
             quantity=order.quantity,
             price_cents=price,
-            fee_cents=self.fee_cents,
+            fee_cents=fee,
         )
         self._apply(fill)
         return fill

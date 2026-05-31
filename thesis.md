@@ -16,7 +16,7 @@ You may edit ONLY `strategy.py`.
 You must keep this exact function contract:
 
 ```python
-from strategy_types import MarketState, Order
+from kalshi_agent.autoresearch.types import MarketState, Order
 
 def decide(state: MarketState) -> Order | None:
     ...
@@ -31,10 +31,10 @@ def decide(state: MarketState) -> Order | None:
 
 Do not edit, import-patch, or otherwise depend on changing these:
 
-- `backtest.py` (the frozen scorer)
-- `evaluator.py` (eval + promotion gate)
-- `strategy_registry.py` (candidate storage)
-- `strategy_types.py` (shared contract)
+- `kalshi_agent/autoresearch/backtest.py` (the frozen scorer)
+- `kalshi_agent/autoresearch/evaluator.py` (eval + promotion gate)
+- `kalshi_agent/autoresearch/registry.py` (candidate storage)
+- `kalshi_agent/autoresearch/types.py` (shared contract)
 - any cached market data or split definitions
 - Kalshi credentials or any live trading code
 

@@ -8,6 +8,7 @@ keys/
 *.key
 ledger.jsonl
 strategy_ledger.jsonl
+strategies/
 
 # Local-only credential notes (account key IDs + personal key-file paths)
 docs/CREDENTIALS.md
@@ -15,8 +16,12 @@ docs/CREDENTIALS.md
 # Generated runtime artifacts (paper-trade snapshots, etc.)
 outputs/
 
+# Local-only research scratch — never commit
+research-pinnacle-kalshi-divergence.md
+
 # Python
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 

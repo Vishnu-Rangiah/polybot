@@ -2,8 +2,9 @@
 
 Vendored external knowledge for the Kalshi autoresearch agent. These files are
 **reference material, not canonical project docs** — the source of truth for what
-we build lives in `../DESIGN.md` and `../TASKS.md`. Keep this folder for "look it
-up locally instead of re-fetching the web" needs.
+we build lives in `../DESIGN.md`, with command and module details in
+`../CODE_LAYOUT.md`. Keep this folder for "look it up locally instead of
+re-fetching the web" needs.
 
 ## The pipeline these map to
 
@@ -36,10 +37,10 @@ client without opening a browser.
 | `rate-limits-and-fees.md` | Rate-limit tiers and the trading-fee formula |
 | `websocket.md` | Streaming feed: channels, subscribe, auth |
 
-Our own client (`../../kalshi_client.py`) already implements the auth signing
+Our own client (`../../kalshi_agent/kalshi_client.py`) already implements the auth signing
 described in `authentication.md`. Note the docs list `external-api.kalshi.com` as
-the current production host; `api.elections.kalshi.com` (what our client uses) is a
-still-working legacy alias for the same exchange — both serve **all** markets.
+the public production host; `api.elections.kalshi.com` is the canonical host the
+live stack uses. Both serve **all** markets.
 
 `weather-markets.md` is the bridge to the data sources below: it explains how to go
 from a market ticker to the exact station and report that settles it.

@@ -18,22 +18,33 @@ Layers, low to high:
     risk.py        pre-trade gate (limits, kill-switch)
     executor.py    Executor protocol + Paper / Live impls
     strategy.py    decide(state) -> Order | None
+    history.py     candlesticks + settlement -> replayable MarketState stream
+    backtest.py    replay resolved markets through the live decision path
+    metrics.py     score a backtest: pnl / win_rate / brier
 """
 
 from kalshi_agent.types import (
+    Candle,
+    ClosedTrade,
     Fill,
     MarketState,
     Order,
     OrderAction,
     Position,
+    Prediction,
+    Settlement,
     Side,
 )
 
 __all__ = [
+    "Candle",
+    "ClosedTrade",
     "Fill",
     "MarketState",
     "Order",
     "OrderAction",
     "Position",
+    "Prediction",
+    "Settlement",
     "Side",
 ]

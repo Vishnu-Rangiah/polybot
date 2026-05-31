@@ -3,6 +3,10 @@
 This document explains the strategy loop that was added on top of the live Kalshi
 weather research demo.
 
+Implementation lives under `kalshi_agent/autoresearch/`. Run it with the unified
+`polybot` CLI (`polybot loop`, `polybot autoresearch-backtest`, etc.) — see
+[`CODE_LAYOUT.md`](CODE_LAYOUT.md).
+
 The goal is simple:
 
 ```text
@@ -25,16 +29,17 @@ Run these commands from the repo root.
 ### 1. Test the frozen backtester
 
 ```bash
-uv run python backtest.py --split train
-uv run python backtest.py --split val
-uv run python backtest.py --split test
+uv run polybot autoresearch-backtest --split train
+uv run polybot autoresearch-backtest --split val
+uv run polybot autoresearch-backtest --split test
 ```
 
 What this proves:
 
 - `strategy.py` can be loaded.
 - The baseline `decide()` function can trade against fixture data.
-- `backtest.py` returns metrics without needing Modal, Codex, network, or API keys.
+- `kalshi_agent.autoresearch.backtest` returns metrics without needing Modal,
+  Codex, network, or API keys.
 
 Expected shape:
 
@@ -55,7 +60,7 @@ and `max_dd`.
 ### 2. Run the full loop without Codex
 
 ```bash
-uv run python loop.py --iterations 4 --worker mock
+uv run polybot loop --iterations 4 --worker mock
 ```
 
 What this proves:
@@ -70,7 +75,7 @@ What this proves:
 After it runs, inspect:
 
 ```bash
-uv run python strategy_registry.py list
+uv run polybot registry list
 ```
 
 And inspect the run ledger:
@@ -89,7 +94,7 @@ Expected behavior:
 ### 3. Dry-run the Codex worker
 
 ```bash
-uv run python codex_worker.py --worker codex --dry-run
+uv run polybot codex --worker codex --dry-run
 ```
 
 What this proves:
@@ -102,7 +107,7 @@ What this proves:
 You should see a message like:
 
 ```text
-DRY RUN. Would run: codex exec --sandbox workspace-write --skip-git-repo-check <prompt>
+DRY RUN. Would run: printenv OPENAI_API_KEY | codex login --with-api-key ...; codex exec ... <prompt> < /dev/null
 ```
 
 Only after these three commands work should you test real Codex in Modal.
@@ -149,7 +154,7 @@ flowchart TD
 Read it left to right:
 
 1. `thesis.md` tells the worker what is allowed.
-2. `loop.py` starts an iteration.
+2. `polybot loop` starts an iteration.
 3. A worker creates new `strategy.py` code.
 4. The code is checked for the required `decide()` function.
 5. The candidate is saved.
@@ -159,7 +164,7 @@ Read it left to right:
 
 ## What Each File Does
 
-### `strategy_types.py`
+### `kalshi_agent/autoresearch/types.py`
 
 Defines the shared data contract.
 
@@ -193,7 +198,7 @@ None
 
 `None` means do not trade.
 
-### `strategy.py`
+### `kalshi_agent/autoresearch/baseline.py`
 
 This is the baseline strategy and the shape Codex is allowed to modify.
 
@@ -213,7 +218,7 @@ The current baseline does this:
 5. Estimate fees and slippage.
 6. Buy YES only if net edge is high enough.
 
-### `backtest.py`
+### `kalshi_agent/autoresearch/backtest.py`
 
 This is the frozen scorer.
 
@@ -230,7 +235,7 @@ What it does:
 
 Important: the strategy never sees `outcome_yes`. Only the backtester sees it.
 
-### `strategy_registry.py`
+### `kalshi_agent/autoresearch/registry.py`
 
 This saves strategies permanently.
 
@@ -299,7 +304,7 @@ It says:
 - Do not use network calls or randomness.
 - Optimize validation, not just train.
 
-### `codex_worker.py`
+### `kalshi_agent/autoresearch/worker.py`
 
 This has two workers.
 
@@ -315,7 +320,7 @@ This has two workers.
 
 - Creates a Modal Sandbox.
 - Installs/runs Codex inside that sandbox.
-- Copies in `strategy.py`, `strategy_types.py`, `backtest.py`, and `thesis.md`.
+- Copies in `strategy.py`, package support files, compatibility shims, and `thesis.md`.
 - Runs `codex exec`.
 - Reads back only the modified `strategy.py`.
 - Deletes the sandbox.
@@ -327,20 +332,20 @@ Even if Codex edits its sandbox copy of backtest.py,
 the official score still runs later on your host copy.
 ```
 
-### `loop.py`
+### `kalshi_agent/autoresearch/loop.py`
 
 This is the main orchestration command.
 
 Run offline:
 
 ```bash
-uv run python loop.py --iterations 4 --worker mock
+uv run polybot loop --iterations 4 --worker mock
 ```
 
 Run with Codex in Modal:
 
 ```bash
-uv run python loop.py --iterations 1 --worker codex
+uv run polybot loop --iterations 1 --worker codex
 ```
 
 Each iteration:
@@ -353,14 +358,14 @@ Each iteration:
 6. Promote or reject.
 7. Append a row to `strategy_ledger.jsonl`.
 
-### `modal_strategy_app.py`
+### `kalshi_agent/autoresearch/modal_app.py`
 
 This is for parallel scoring and future parallel Codex runs.
 
 Use it after you have saved strategy ids:
 
 ```bash
-uv run modal run modal_strategy_app.py --strategy-ids "<id1>,<id2>" --splits train,val
+uv run modal run kalshi_agent/autoresearch/modal_app.py --strategy-ids "<id1>,<id2>" --splits train,val
 ```
 
 It uses Modal Functions for parallel scoring. That is separate from Modal Sandboxes,
@@ -373,8 +378,17 @@ This path avoids Modal and OpenAI. Use it first.
 ### Step 1: Compile everything
 
 ```bash
-uv run python -m py_compile strategy_types.py strategy.py backtest.py \
-  strategy_registry.py evaluator.py codex_worker.py loop.py modal_strategy_app.py
+uv run python -m py_compile \
+  kalshi_agent/autoresearch/types.py \
+  kalshi_agent/autoresearch/baseline.py \
+  kalshi_agent/autoresearch/backtest.py \
+  kalshi_agent/autoresearch/registry.py \
+  kalshi_agent/autoresearch/evaluator.py \
+  kalshi_agent/autoresearch/worker.py \
+  kalshi_agent/autoresearch/loop.py \
+  kalshi_agent/autoresearch/modal_app.py \
+  strategy_types.py strategy.py backtest.py strategy_registry.py \
+  evaluator.py codex_worker.py loop.py modal_strategy_app.py
 ```
 
 Pass condition:
@@ -386,8 +400,8 @@ No output and exit code 0.
 ### Step 2: Backtest the baseline
 
 ```bash
-uv run python backtest.py --split train
-uv run python backtest.py --split val
+uv run polybot autoresearch-backtest --split train
+uv run polybot autoresearch-backtest --split val
 ```
 
 Pass condition:
@@ -406,7 +420,7 @@ pnl, sharpe, brier, and max_dd should be present.
 ### Step 3: Run one offline loop
 
 ```bash
-uv run python loop.py --iterations 1 --worker mock
+uv run polybot loop --iterations 1 --worker mock
 ```
 
 Pass condition:
@@ -424,7 +438,7 @@ promoted_paper
 ### Step 4: Inspect saved strategy files
 
 ```bash
-uv run python strategy_registry.py list
+uv run polybot registry list
 ```
 
 Pick a `strategy_id`, then inspect:
@@ -456,7 +470,7 @@ cat strategies/<strategy_id>/evals.jsonl
 ### Step 5: Run more offline iterations
 
 ```bash
-uv run python loop.py --iterations 4 --worker mock
+uv run polybot loop --iterations 4 --worker mock
 ```
 
 Pass condition:
@@ -502,7 +516,7 @@ OPENAI_API_KEY
 ### Step 2: Dry-run the Codex worker
 
 ```bash
-uv run python codex_worker.py --worker codex --dry-run
+uv run polybot codex --worker codex --dry-run
 ```
 
 Pass condition:
@@ -514,7 +528,7 @@ It prints the codex exec command and does not contact Modal.
 ### Step 3: Run one real Codex iteration
 
 ```bash
-uv run python loop.py --iterations 1 --worker codex
+uv run polybot loop --iterations 1 --worker codex
 ```
 
 First run may be slow because Modal builds the image with Node, npm, and Codex.
@@ -528,7 +542,7 @@ The command creates one strategy candidate and prints its evaluation summary.
 If you used a different Modal secret name:
 
 ```bash
-uv run python loop.py --iterations 1 --worker codex --codex-secret-name my-secret-name
+uv run polybot loop --iterations 1 --worker codex --codex-secret-name my-secret-name
 ```
 
 ### Step 4: Inspect what Codex produced
@@ -536,7 +550,7 @@ uv run python loop.py --iterations 1 --worker codex --codex-secret-name my-secre
 List candidates:
 
 ```bash
-uv run python strategy_registry.py list
+uv run polybot registry list
 ```
 
 Open the newest candidate:
@@ -578,14 +592,14 @@ uv run modal secret create openai-secret OPENAI_API_KEY=$OPENAI_API_KEY
 Then retry:
 
 ```bash
-uv run python loop.py --iterations 1 --worker codex
+uv run polybot loop --iterations 1 --worker codex
 ```
 
 ### Codex command not found inside Modal
 
 This means the image build did not install Codex correctly.
 
-Check `codex_worker.py`, especially:
+Check `kalshi_agent/autoresearch/worker.py`, especially:
 
 ```python
 .apt_install("nodejs", "npm")
@@ -630,7 +644,7 @@ cat strategy_ledger.jsonl
 The original weather MVP does live research:
 
 ```text
-research.py
+kalshi_agent/research/core.py
   -> fetch Kalshi market and orderbook
   -> fetch NWS weather
   -> estimate probability
@@ -640,24 +654,27 @@ research.py
 The strategy autoresearch system does strategy search:
 
 ```text
-strategy.py
+kalshi_agent/autoresearch/baseline.py
   -> consumes MarketState
   -> returns Order or None
 
-backtest.py
+kalshi_agent/autoresearch/backtest.py
   -> replays MarketState fixtures
   -> scores strategy decisions
 ```
 
-Today, `backtest.py` uses fixtures. The next important step is to turn real resolved
-Kalshi/weather snapshots into `MarketState` JSONL and pass that through:
+`kalshi_agent/autoresearch/backtest.py` intentionally still uses fixtures so the
+Codex loop has a small frozen scorer. The real resolved-market backtester from
+PR #5 lives at `kalshi_agent/backtest.py` and runs through the live
+`strategy.py` / `RiskGate` / `PaperExecutor` path:
 
 ```bash
-uv run python backtest.py --split train --cases-path data/weather_cases.jsonl
+uv run polybot backtest --tickers KXRAINNYC-26MAY28-T0,KXRAINNYC-26MAY29-T0
 ```
 
-That is how the demo grows from a fixture-based loop into a real historical
-backtesting loop.
+Those two backtesters are separate on purpose: `polybot autoresearch-backtest`
+guards generated autoresearch candidates, while `polybot backtest` evaluates the
+live strategy over resolved Kalshi markets.
 
 ## Minimal End-To-End Example
 
@@ -667,8 +684,8 @@ This uses a temporary registry so it does not leave files behind:
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from loop import run_loop
-from strategy_registry import list_strategy_candidates, iter_eval_results
+from kalshi_agent.autoresearch.loop import run_loop
+from kalshi_agent.autoresearch.registry import iter_eval_results, list_strategy_candidates
 
 with TemporaryDirectory() as tmp:
     registry = Path(tmp) / "strategies"

@@ -10,3 +10,13 @@ dependencies = [
     "requests>=2.34.2",
     "websocket-client>=1.8.0",
 ]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+polybot = "kalshi_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kalshi_agent*"]
