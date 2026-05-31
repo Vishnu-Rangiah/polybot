@@ -4,7 +4,7 @@ import argparse
 import json
 from typing import Any
 
-from research import append_ledger_entry, research_market
+from kalshi_agent.research.core import append_ledger_entry, research_market
 
 INSTRUCTIONS = """
 You are a Kalshi weather-market research coordinator.
@@ -35,7 +35,7 @@ def research_market_payload(ticker: str, *, run_type: str = "agent_weather_resea
 
 def research_many_markets_payload(tickers: list[str], *, use_modal: bool = True) -> list[dict]:
     if use_modal:
-        from modal_app import research_many_markets
+        from kalshi_agent.research.modal_app import research_many_markets
 
         results = research_many_markets(tickers)
         for result in results:

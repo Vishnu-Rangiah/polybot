@@ -1,12 +1,12 @@
 # Weather Research MVP
 
-This document explains the root-level Kalshi weather research scaffold:
+This document explains the packaged Kalshi weather research scaffold:
 
 ```text
-research.py      -> core market/weather research logic
-modal_app.py     -> parallel execution wrapper around research.py
-agent_runner.py  -> OpenAI Agents SDK coordinator
-ledger.jsonl     -> append-only local run history, ignored by git
+kalshi_agent/research/core.py       -> core market/weather research logic
+kalshi_agent/research/modal_app.py  -> Modal fan-out wrapper around core.py
+kalshi_agent/research/agent.py      -> OpenAI Agents SDK coordinator
+ledger.jsonl                        -> append-only local run history, ignored by git
 ```
 
 The MVP is paper-only. It reads public market/weather data, estimates a simple fair probability, and prints a research memo. It does not place trades and does not use private Kalshi keys.
@@ -57,13 +57,13 @@ The Python upper bound avoids package build issues seen with Python 3.14 and Mod
 Run one live market locally:
 
 ```bash
-uv run python research.py --ticker KXRAINNYC-26MAY31-T0
+uv run polybot research --ticker KXRAINNYC-26MAY31-T0
 ```
 
 Run without writing to the ledger:
 
 ```bash
-uv run python research.py --ticker KXRAINNYC-26MAY31-T0 --no-ledger
+uv run polybot research --ticker KXRAINNYC-26MAY31-T0 --no-ledger
 ```
 
 The output is JSON shaped like:
@@ -100,10 +100,10 @@ The output is JSON shaped like:
 
 ## Core Code Path
 
-The public API inside `research.py` is:
+The public API inside `kalshi_agent.research.core` is:
 
 ```python
-from research import research_market
+from kalshi_agent.research.core import research_market
 
 result = research_market("KXRAINNYC-26MAY31-T0")
 print(result["decision"]["action"])
@@ -123,9 +123,9 @@ def research_market(ticker: str) -> dict:
     location_key = rule.get("location")
     if location_key not in KNOWN_LOCATIONS:
         model = {
-            "probability_yes": 0.5,
+            "probability_yes": None,
             "confidence": "low",
-            "notes": ["Location is unsupported by the MVP weather map."],
+            "notes": ["Location is unsupported by the MVP weather map; abstaining."],
         }
     else:
         hourly = fetch_nws_hourly_forecast(KNOWN_LOCATIONS[location_key])
@@ -257,7 +257,7 @@ Example programmatic use:
 
 ```python
 from pathlib import Path
-from research import append_ledger_entry, research_market
+from kalshi_agent.research.core import append_ledger_entry, research_market
 
 result = research_market("KXRAINNYC-26MAY31-T0")
 append_ledger_entry(result, path=Path("ledger.jsonl"))
@@ -283,12 +283,12 @@ Example ledger row:
 
 ## Modal Parallel Execution
 
-`modal_app.py` wraps the same `research_market()` function:
+`kalshi_agent/research/modal_app.py` wraps the same `research_market()` function:
 
 ```python
 @app.function(image=image, timeout=120)
 def research_one_market(ticker: str) -> dict:
-    from research import research_market
+    from kalshi_agent.research.core import research_market
 
     return research_market(ticker)
 ```
@@ -296,19 +296,19 @@ def research_one_market(ticker: str) -> dict:
 Run multiple tickers in Modal:
 
 ```bash
-uv run modal run modal_app.py --tickers KXRAINNYC-26MAY31-T0,KXRAINNYC-26MAY30-T0
+uv run modal run kalshi_agent/research/modal_app.py --tickers KXRAINNYC-26MAY31-T0,KXRAINNYC-26MAY30-T0
 ```
 
 Skip ledger writes from the local Modal entrypoint:
 
 ```bash
-uv run modal run modal_app.py --tickers KXRAINNYC-26MAY31-T0 --no-write-ledger
+uv run modal run kalshi_agent/research/modal_app.py --tickers KXRAINNYC-26MAY31-T0 --no-write-ledger
 ```
 
 Use the Modal wrapper from Python:
 
 ```python
-from modal_app import research_many_markets
+from kalshi_agent.research.modal_app import research_many_markets
 
 results = research_many_markets([
     "KXRAINNYC-26MAY31-T0",
@@ -329,7 +329,7 @@ def research_many_markets(tickers, *, manage_app: bool = True) -> list[dict]:
 
 ## OpenAI Agent Coordinator
 
-`agent_runner.py` defines an agent with two tools:
+`kalshi_agent/research/agent.py` defines an agent with two tools:
 
 ```python
 @function_tool
@@ -347,21 +347,21 @@ def research_many_markets_tool(tickers: list[str]) -> list[dict]:
 Run the agent sequentially without Modal:
 
 ```bash
-OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run python agent_runner.py --local \
+OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run polybot agent --local \
   "Research KXRAINNYC-26MAY31-T0 and KXRAINNYC-26MAY30-T0, then summarize the best paper-only watchlist candidates"
 ```
 
 Run the agent with Modal enabled:
 
 ```bash
-OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run python agent_runner.py \
+OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run polybot agent \
   "Research KXRAINNYC-26MAY31-T0 and KXRAINNYC-26MAY30-T0, then summarize the best paper-only watchlist candidates"
 ```
 
 Programmatic use:
 
 ```python
-from agent_runner import run_agent
+from kalshi_agent.research.agent import run_agent
 
 summary = run_agent(
     "Research KXRAINNYC-26MAY31-T0 and summarize the key risks.",
@@ -399,7 +399,7 @@ Add a new city:
 
 1. Add coordinates to `KNOWN_LOCATIONS`.
 2. Add ticker/title matching in `infer_location()`.
-3. Run a known ticker through `research.py --no-ledger`.
+3. Run a known ticker through `polybot research --no-ledger`.
 
 Add a new weather family:
 
@@ -415,15 +415,13 @@ Improve the model:
 3. Return model notes that explain why the probability changed.
 4. Compare decisions over time using `ledger.jsonl`.
 
-Move into a package later:
+Package layout:
 
 ```text
-research.py      -> src/kalshi_agent/research.py or split modules
-modal_app.py     -> src/kalshi_agent/modal_app.py
-agent_runner.py  -> src/kalshi_agent/agent_runner.py
+kalshi_agent/research/core.py
+kalshi_agent/research/modal_app.py
+kalshi_agent/research/agent.py
 ```
-
-Do that after the demo path is stable, not before.
 
 ## Troubleshooting
 
@@ -440,7 +438,7 @@ research_many_markets(tickers, manage_app=False)
 If the agent cannot start, check that:
 
 ```bash
-OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run python agent_runner.py --local "Research KXRAINNYC-26MAY31-T0"
+OPENAI_API_KEY="$(< keys/openapi_key.txt)" uv run polybot agent --local "Research KXRAINNYC-26MAY31-T0"
 ```
 
 is being run from the repo root and that `uv sync` has installed `openai-agents`.

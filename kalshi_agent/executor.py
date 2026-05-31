@@ -76,10 +76,9 @@ class PaperExecutor:
     ):
         self._gate = gate
         self.balance_cents = starting_balance_cents
-        # `fee_cents` is a flat per-fill fee (the live default). `fee_model`, when
-        # given, computes the fee from (quantity, price_cents) and takes
-        # precedence — backtests pass Kalshi's quadratic fee through here so the
-        # paper fill carries a realistic cost without changing the live path.
+        # `fee_cents` is a flat per-fill fee. `fee_model`, when given, computes
+        # the fee from (quantity, price_cents) and takes precedence; historical
+        # backtests use it to carry Kalshi's quadratic fee through paper fills.
         self.fee_cents = fee_cents
         self.fee_model = fee_model
         self._positions: dict[tuple[str, Side], Position] = {}

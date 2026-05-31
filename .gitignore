@@ -7,6 +7,8 @@ keys/
 *.pem
 *.key
 ledger.jsonl
+strategy_ledger.jsonl
+strategies/
 
 # Local-only credential notes (account key IDs + personal key-file paths)
 docs/CREDENTIALS.md
@@ -21,4 +23,5 @@ research-pinnacle-kalshi-divergence.md
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 

@@ -8,12 +8,13 @@ Build an autonomous research system for prediction markets. The first demo resea
 
 This file is the canonical design source for the project. Supporting docs:
 
-- `docs/TASKS.md` - team coordination and task ownership.
-- `kalshi_strats.md` - strategy catalog and example market outputs.
-- `hackathon.md` - judging criteria, logistics, and resource links.
+- `docs/CODE_LAYOUT.md` - current package layout and CLI commands.
+- `docs/WEATHER_RESEARCH_MVP.md` - live weather research walkthrough.
+- `docs/STRATEGY_AUTORESEARCH.md` - Codex/Modal strategy loop operations.
+- `docs/MODAL_SANDBOX_WALKTHROUGH.md` - Modal sandbox smoke-test workflow.
 - `.cursor/plans/kalshi_weather_agent_92ec1e3f.plan.md` - earlier implementation plan for the terminal weather MVP.
 
-When docs disagree, follow this file first, then update `docs/TASKS.md`.
+When docs disagree, follow this file first, then update the walkthrough that owns the affected command path.
 
 ## Hackathon Framing
 
@@ -48,7 +49,7 @@ Most contracts are binary:
 Important Kalshi mechanics for this project:
 
 - The market title is not enough. The exact resolution rule controls settlement.
-- Public market data can be fetched without authentication from `https://external-api.kalshi.com/trade-api/v2`.
+- Public market data can be fetched without authentication from the canonical prod host `https://api.elections.kalshi.com/trade-api/v2`.
 - Orderbooks return YES bids and NO bids, not explicit asks.
 - `yes_ask = 1 - best_no_bid`.
 - `no_ask = 1 - best_yes_bid`.
@@ -60,7 +61,7 @@ Important Kalshi mechanics for this project:
 There are two complementary ideas in the repo:
 
 1. **Live weather research agent:** Given a current Kalshi weather market, fetch market data and public weather evidence, estimate fair probability, and print an explainable paper-trade memo.
-2. **Autoresearch backtesting loop:** Give an agent one mutable `strategy.py` and a frozen `backtest.py`; let it iterate on strategies while validation metrics prevent overfitting.
+2. **Autoresearch backtesting loop:** Give an agent one mutable strategy module and a frozen backtester; let it iterate on strategies while validation metrics prevent overfitting.
 
 These should merge into one product:
 
@@ -76,9 +77,9 @@ Phase 2: Frozen Backtester
   - Score strategies with PnL, Sharpe, Brier, n_trades, and max drawdown.
 
 Phase 3: Autoresearch Loop
-  - Agent edits only strategy.py.
-  - backtest.py remains frozen.
-  - loop.py keeps or discards strategies using validation metrics.
+  - Agent edits only candidate strategy code.
+  - `kalshi_agent/autoresearch/backtest.py` remains frozen.
+  - `polybot loop` keeps or discards strategies using validation metrics.
   - ledger.json records every attempt.
 
 Phase 4: Demo Polish
@@ -128,47 +129,39 @@ thesis.md
   -> best strategy can be paper-traded
 ```
 
-## Initial Repo Layout
+## Current Repo Layout
 
-Target layout:
+Package-first layout:
 
 ```text
 polybot/
   README.md
-  requirements.txt
+  pyproject.toml
   docs/
     README.md
+    CODE_LAYOUT.md
     DESIGN.md
-    TASKS.md
-  src/
-    kalshi_agent/
-      __init__.py
-      cli.py
-      types.py
-      kalshi_client.py
-      pricing.py
-      rule_parser.py
-      weather.py        # Open-Meteo feature source (live + historical-forecast)
-      decision.py
-      report.py
-      strategy.py
-  evals/
-    golden_cases.json
+  kalshi_agent/
+    cli.py
+    run.py
+    types.py
+    transport.py
+    datasource.py
+    kalshi_client.py
+    kalshi_public.py
+    weather.py
+    research/
+    autoresearch/
   outputs/
-    .gitkeep
 ```
 
-Later additions:
+Runtime artifacts:
 
 ```text
-data/
-  fetch.py
-  cache/
-backtest.py
-loop.py
-ledger.json
+strategies/
+ledger.jsonl
+strategy_ledger.jsonl
 thesis.md
-raindrop/
 ```
 
 ## Shared Contract
@@ -247,7 +240,7 @@ Use public endpoints first.
 ```python
 import requests
 
-BASE_URL = "https://external-api.kalshi.com/trade-api/v2"
+BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 
 class KalshiClient:
     def __init__(self, base_url: str = BASE_URL):

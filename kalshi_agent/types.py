@@ -166,10 +166,10 @@ class OrderAck:
 class Candle:
     """One OHLC candlestick for a single market (Kalshi candlesticks endpoint).
 
-    We keep only the *close* of each series: for a no-lookahead backtest the
-    period close is the last value knowable within that period, so it is the
-    honest decision-time quote. Prices are integer cents; `None` means that side
-    had no quote during the period. Candles carry no resting-depth information.
+    We keep only the close of each series: for a no-lookahead backtest the period
+    close is the last value knowable within that period, so it is the honest
+    decision-time quote. Prices are integer cents; `None` means that side had no
+    quote during the period. Candles carry no resting-depth information.
     """
 
     ticker: str
@@ -183,12 +183,7 @@ class Candle:
 
 @dataclass(frozen=True, slots=True)
 class Settlement:
-    """How a market resolved — the ground truth a backtest scores against.
-
-    `result` mirrors Kalshi's `market.result`: "yes", "no", or "" when the market
-    has not settled (or resolved to a non-binary outcome we don't score). A YES
-    contract pays 100c iff `result == "yes"`; a NO contract pays 100c iff "no".
-    """
+    """How a market resolved, the ground truth a backtest scores against."""
 
     ticker: str
     result: str  # "yes" | "no" | "" (unsettled / unscored)
@@ -208,12 +203,7 @@ class Settlement:
 
 @dataclass(frozen=True, slots=True)
 class Prediction:
-    """A model probability emitted at decision time, paired with the realized
-    outcome once the market settled. The input to calibration scoring (Brier).
-
-    `outcome` is 1 if YES resolved true, else 0 — always framed from the YES
-    side, matching `fair_prob_yes`, regardless of which side (if any) was traded.
-    """
+    """A decision-time model probability joined to the realized YES outcome."""
 
     ticker: str
     observed_at_ms: int
@@ -223,8 +213,7 @@ class Prediction:
 
 @dataclass(frozen=True, slots=True)
 class ClosedTrade:
-    """A round-trip held to settlement: bought at `entry_cents`, paid out
-    `settle_cents` (100 or 0 for the side held). The input to P&L."""
+    """A fill held to settlement; the input to realized P&L."""
 
     ticker: str
     side: Side

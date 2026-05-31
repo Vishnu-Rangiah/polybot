@@ -5,20 +5,20 @@ from collections.abc import Iterable
 
 import modal
 
-from research import append_ledger_entry
+from kalshi_agent.research.core import append_ledger_entry
 
 app = modal.App("polybot-kalshi-research")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("requests")
-    .add_local_python_source("research")
+    .add_local_python_source("kalshi_agent")
 )
 
 
 @app.function(image=image, timeout=120)
 def research_one_market(ticker: str) -> dict:
-    from research import research_market
+    from kalshi_agent.research.core import research_market
 
     return research_market(ticker)
 
