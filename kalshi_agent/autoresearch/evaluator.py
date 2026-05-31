@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import kalshi_agent.autoresearch.types as autoresearch_types
 from kalshi_agent.autoresearch.backtest import StrategyFn, backtest, load_cases
 from kalshi_agent.autoresearch.registry import (
     DEFAULT_REGISTRY_PATH,
@@ -65,11 +66,21 @@ def load_strategy_fn_from_file(source_path: Path, function_name: str = "decide")
 
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
+    # Older saved candidates imported the pre-package shim `strategy_types`.
+    # Keep those immutable strategies loadable after moving the contract under
+    # `kalshi_agent.autoresearch.types`.
+    previous_strategy_types = sys.modules.get("strategy_types")
+    sys.modules["strategy_types"] = autoresearch_types
     try:
         spec.loader.exec_module(module)
     except Exception:
         sys.modules.pop(module_name, None)
         raise
+    finally:
+        if previous_strategy_types is None:
+            sys.modules.pop("strategy_types", None)
+        else:
+            sys.modules["strategy_types"] = previous_strategy_types
 
     strategy_fn = getattr(module, function_name, None)
     if not callable(strategy_fn):

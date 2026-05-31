@@ -23,6 +23,10 @@ uv run polybot agent --local "Research KXRAINNYC-26MAY31-T0"
 # Historical resolved-market backtest (signed Kalshi API)
 uv run polybot backtest --tickers KXRAINNYC-26MAY28-T0
 
+# Dry-run / place fake-money demo order from the promoted autoresearch strategy
+uv run polybot demo-trade --ticker KXRAINNYC-26MAY31-T0
+uv run polybot demo-trade --ticker KXRAINNYC-26MAY31-T0 --place-order
+
 # Strategy autoresearch (mock or Codex)
 uv run polybot loop --worker mock --iterations 1
 uv run polybot loop --worker codex --iterations 1 --codex-app-name polybot
@@ -44,6 +48,7 @@ uv run modal run kalshi_agent/research/modal_app.py --tickers KXRAINNYC-26MAY31-
 | `kalshi_agent/history.py` | Fetch Kalshi candlesticks + settlement and replay `MarketState`s |
 | `kalshi_agent/backtest.py` | Real resolved-market backtest through live strategy/risk/paper path |
 | `kalshi_agent/metrics.py` | PnL, win rate, Brier, and Kalshi fee scoring helpers |
+| `kalshi_agent/demo_trade.py` | Run promoted autoresearch strategies against Kalshi demo/prod plumbing |
 
 Research uses **public** endpoints (no key). Live paper/demo trading uses **transport** + optional keys in `.env.local`.
 
@@ -72,6 +77,7 @@ kalshi_agent/
   history.py          # Candles + settlement -> replay stream
   backtest.py         # Resolved-market live-path backtester
   metrics.py          # Backtest scorecard helpers
+  demo_trade.py       # Promoted strategy -> demo LiveExecutor
   research/           # Weather memos, Modal fan-out, OpenAI agent
   autoresearch/       # Codex loop, backtest, registry, Modal scoring
 ```

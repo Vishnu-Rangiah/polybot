@@ -88,8 +88,16 @@ def build_codex_prompt(context: WorkerContext) -> str:
         Prior validation/train metrics for the parent strategy:
         {prior}
 
-        Produce a meaningfully different, well-reasoned variation that should improve
-        risk-adjusted validation performance after costs. When finished, briefly explain
+        Promotion target:
+        - A zero-trade strategy is rejected.
+        - This scorer reports Sharpe 0.0 when a split has fewer than two trades,
+          so simply adding conservative filters usually cannot beat the parent.
+        - Prefer a controlled, tradeable variation that can generate enough
+          validation trades while still improving net edge after fees/slippage.
+        - Do not hardcode specific tickers, dates, split names, or outcomes.
+
+        Attempt index: {context.attempt_index}. Produce a meaningfully different,
+        well-reasoned variation from the parent. When finished, briefly explain
         the hypothesis behind your change in your final message.
         """
     ).strip()

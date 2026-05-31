@@ -17,6 +17,7 @@ Everything lives under `kalshi_agent/`. Use the **`polybot`** CLI (or `uv run -m
 | Signed Kalshi read smoke test | `kalshi_agent/kalshi_client.py` | `polybot read` |
 | Weather research + agent | `kalshi_agent/research/` | `polybot research`, `polybot agent` |
 | Historical resolved-market backtester | `kalshi_agent/backtest.py`, `history.py`, `metrics.py` | `polybot backtest` |
+| Demo trading with promoted strategies | `kalshi_agent/demo_trade.py` | `polybot demo-trade` |
 | Codex autoresearch loop | `kalshi_agent/autoresearch/` | `polybot loop`, `polybot codex` |
 
 Root keeps only **`read.py`** and **`kalshi_client.py`** as thin compatibility shims. Generated strategies go under `strategies/` (gitignored).
@@ -32,6 +33,7 @@ flowchart TD
     CLI --> Research["polybot research"]
     CLI --> Agent["polybot agent"]
     CLI --> HistoricalBacktest["polybot backtest"]
+    CLI --> DemoTrade["polybot demo-trade"]
     CLI --> Loop["polybot loop"]
 
     PackageDemo --> PackageRuntime["kalshi_agent: transport, datasource, strategy"]
@@ -47,6 +49,10 @@ flowchart TD
     HistoricalBacktest --> History["history: candles + settlement"]
     History --> PackageRuntime
     HistoricalBacktest --> Metrics["metrics: pnl / win_rate / brier"]
+
+    DemoTrade --> Promoted["promoted autoresearch strategy"]
+    DemoTrade --> DemoData["Kalshi demo REST data"]
+    Promoted --> RiskExecutor
 
     Loop --> WorkerChoice["mock or codex worker"]
     WorkerChoice --> ModalSandbox["Modal Sandbox + Codex"]
@@ -71,6 +77,15 @@ POLYBOT_CODEX_MODAL_SECRET=openai-secret
 EOF
 
 chmod 600 .env.local
+```
+
+For Kalshi demo trading, use **demo** credentials. Demo and prod keys are
+separate, so a prod key will fail against demo:
+
+```bash
+KALSHI_ENV=demo
+KALSHI_DEMO_KEY_ID=<demo_key_id>
+KALSHI_DEMO_PRIVATE_KEY_PATH=/absolute/path/to/demo_private_key.pem
 ```
 
 If you keep keys in `keys/`, generate `.env.local` from those files:
@@ -116,6 +131,12 @@ uv run polybot agent --local "Research KXRAINNYC-26MAY31-T0 and summarize watchl
 
 # Resolved-market historical backtest (requires Kalshi keys in .env.local)
 uv run polybot backtest --tickers KXRAINNYC-26MAY28-T0
+
+# Dry-run the current promoted autoresearch strategy against Kalshi demo data
+uv run polybot demo-trade --ticker KXRAINNYC-26MAY31-T0
+
+# Place one guarded fake-money demo order if the promoted strategy returns an order
+uv run polybot demo-trade --ticker KXRAINNYC-26MAY31-T0 --place-order
 
 # One offline autoresearch iteration
 uv run polybot loop --worker mock --iterations 1
