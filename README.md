@@ -57,6 +57,44 @@ flowchart TD
 
 ## Quick Start
 
+Set up a local environment file. This file is gitignored and should never be
+committed:
+
+```bash
+cat > .env.local <<'EOF'
+OPENAI_API_KEY=sk-...
+KALSHI_ENV=prod
+KALSHI_KEY_ID=...
+KALSHI_PRIVATE_KEY_PATH=/absolute/path/to/kalshi_private_key.pem
+POLYBOT_CODEX_MODAL_APP=polybot
+POLYBOT_CODEX_MODAL_SECRET=openai-secret
+EOF
+
+chmod 600 .env.local
+```
+
+If you keep keys in `keys/`, generate `.env.local` from those files:
+
+```bash
+{
+  printf 'OPENAI_API_KEY='
+  tr -d '\n' < keys/openapi_key.txt
+  printf '\nKALSHI_ENV=prod\nKALSHI_KEY_ID='
+  tr -d '\n' < keys/kalshi_key_id.txt
+  printf '\nKALSHI_PRIVATE_KEY_PATH=/Users/vishnu/polybot/keys/kalshi_private_key.txt\n'
+  printf 'POLYBOT_CODEX_MODAL_APP=polybot\n'
+  printf 'POLYBOT_CODEX_MODAL_SECRET=openai-secret\n'
+} > .env.local
+
+chmod 600 .env.local
+```
+
+Create the Modal secret used by Codex sandboxes:
+
+```bash
+uv run modal secret create openai-secret OPENAI_API_KEY="$(< keys/openapi_key.txt)" --force
+```
+
 ```bash
 uv sync
 uv run polybot --help
@@ -81,6 +119,13 @@ uv run polybot backtest --tickers KXRAINNYC-26MAY28-T0
 
 # One offline autoresearch iteration
 uv run polybot loop --worker mock --iterations 1
+
+# One real Codex autoresearch iteration in a Modal sandbox
+uv run polybot loop \
+  --worker codex \
+  --iterations 1 \
+  --codex-app-name polybot \
+  --codex-model gpt-5-mini
 ```
 
 All recommendations are paper research only unless you explicitly wire `LiveExecutor` and demo/prod keys.
